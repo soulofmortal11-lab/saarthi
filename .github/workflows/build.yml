@@ -42,10 +42,25 @@ jobs:
         env:
           SAARTHI_KEYSTORE_PASSWORD: ${{ secrets.SAARTHI_KEYSTORE_PASSWORD }}
           SAARTHI_KEY_ALIAS: saarthi
-        run: gradle assembleRelease --no-daemon --stacktrace
+        shell: bash
+        run: gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Save the build log if it failed
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs" && cd "$RUNNER_TEMP/logs"
+          git init -q && git checkout -q -b build-logs
+          grep -E "^e: |error:|FAILURE|What went wrong" -A3 "$GITHUB_WORKSPACE/build.log" | head -200 > errors.txt || true
+          tail -300 "$GITHUB_WORKSPACE/build.log" > build-tail.txt
+          git -c user.name="Saarthi build" -c user.email="build@saarthi.local" add .
+          git -c user.name="Saarthi build" -c user.email="build@saarthi.local" commit -q -m "Build ${{ github.run_number }} failed"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" build-logs
 
       - name: Name the app file
-        run: cp app/build/outputs/apk/release/app-release.apk "saarthi-0.1.${{ github.run_number }}.apk"
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[0-9]+\.[0-9]+' app/build.gradle.kts)
+          cp app/build/outputs/apk/release/app-release.apk "saarthi-$VERSION.${{ github.run_number }}.apk"
 
       - name: Publish for download
         uses: softprops/action-gh-release@v2
