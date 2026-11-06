@@ -1,0 +1,59 @@
+name: Build Saarthi
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Load the signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SAARTHI_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/saarthi.jks"
+            echo "SAARTHI_KEYSTORE_PATH=$RUNNER_TEMP/saarthi.jks" >> "$GITHUB_ENV"
+            echo "Signing with the permanent Saarthi key."
+          else
+            echo "::warning::No signing key in secrets yet. This build uses a temporary key and cannot update other builds."
+          fi
+
+      - name: Build the app
+        env:
+          SAARTHI_KEYSTORE_PASSWORD: ${{ secrets.SAARTHI_KEYSTORE_PASSWORD }}
+          SAARTHI_KEY_ALIAS: saarthi
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Name the app file
+        run: cp app/build/outputs/apk/release/app-release.apk "saarthi-0.1.${{ github.run_number }}.apk"
+
+      - name: Publish for download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Saarthi build ${{ github.run_number }}
+          body: |
+            Download the .apk file below on your phone and open it to install.
+            Built from commit ${{ github.sha }}.
+          files: saarthi-*.apk
+          make_latest: "true"
