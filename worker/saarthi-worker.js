@@ -60,7 +60,7 @@ async function chat(request, env) {
     method: "POST",
     headers: {
       "x-api-key": env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
+      "anthropic-version": "2026-10-21",
       "content-type": "application/json",
     },
     body: JSON.stringify({
